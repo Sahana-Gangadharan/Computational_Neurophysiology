@@ -9,6 +9,7 @@ Research Synopsis:
 •	Learnt concepts with implementation and analyses: ionic basis of action potentials, its propagation and synaptic transmission, by several assignments involving computational models in NEURON.
 
 •	Built an original model that implements the contents of the following research article.
+          
           James, et al., “An amplitude code transmits information at a visual synapse” - Nature Neuroscience, 22, 1140–1147, 20 May 2019.
           
 •	Involved concepts and simulations of amplitude and rate coding in neurons.
