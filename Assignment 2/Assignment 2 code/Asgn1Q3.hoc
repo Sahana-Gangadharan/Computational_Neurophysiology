@@ -1,0 +1,202 @@
+load_file("nrngui.hoc") 
+
+create dend
+access dend
+
+stamp=0.1 // nA
+rm=35000	// ohm cm2
+ra=250	// ohm cm
+c_m=1.5	//muF cm2
+diameter=3 //mu m
+Length=1500 //mu m
+
+dend{
+	diam=diameter
+	L=Length
+	Ra=ra
+	cm=c_m
+	nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+	print nseg 
+
+	insert pas
+	e_pas=-65
+	g_pas=1/rm
+
+	insert minmax
+}
+
+objectvar stim
+dend stim = new IClamp(0)
+
+stim.del = 50
+stim.dur = 500
+stim.amp = stamp
+
+tstop = 600
+
+proc update_clamp() {
+	stim.amp=stamp
+}
+
+proc update_cm() {
+	init()
+	dend{
+		cm=c_m
+		nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+	}
+}
+
+proc update_rm() {
+	init()
+	dend {
+		g_pas=1/rm
+		nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+	}
+}
+
+proc update_ra() {
+	init()
+	dend {
+		Ra=ra
+		nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+	}
+}
+
+proc update_L() {
+	init()
+	dend {
+		L=Length
+		nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+	}
+}
+
+proc update_diam() {
+	init()
+	dend {
+		diam=diameter
+		nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+	}
+}
+
+objref v1, v2, f1, f2
+v1 = new Vector(101)
+v2 = new Vector(101)
+f1 = new File()
+f2 = new File()
+
+strdef filename1, filename2
+
+proc print_attenuation(){
+	finitialize(-65)
+	print "nseg=",dend.nseg
+	while (t<tstop){
+		fadvance()
+	}
+	dend {
+		for(j=0; j<=100; j+=1) {
+			v1.x[j] = j*0.01*dend.L
+			v2.x[j] = abs(v_init-vmax_minmax(j*0.01))
+			printf("%f and %f\n", j*0.01*dend.L, abs(v_init-vmax_minmax(j*0.01)))
+			
+		}
+	}
+}
+print_attenuation()
+
+f1.wopen("Distance.txt")
+v1.printf(f1)
+f2.wopen("Attenuation Voltage.txt")
+v2.printf(f2)
+
+/* Varying Rm and recording attenuation*/
+for(i=1; i<=7; i+=1) {
+	rm = rm + 5000
+	update_rm()
+	print_attenuation()
+
+	sprint(filename2,"Voltage difference with Rm%d.txt",i)
+	f2.wopen(filename2)
+	v2.printf(f2)
+}
+rm = 35000
+update_rm()
+
+/* Varying Ra and recording attenuation*/
+for(i=1; i<=7; i+=1) {
+	ra = ra + 50
+	update_ra()
+	print_attenuation()
+
+	sprint(filename2,"Voltage difference with Ra%d.txt",i)
+	f2.wopen(filename2)
+	v2.printf(f2)
+}
+ra = 250
+update_ra()
+
+/* Varying Cm and recording attenuation*/
+for(i=1; i<=7; i+=1) {
+	c_m = c_m + 0.5
+	update_cm()
+	print_attenuation()
+
+	sprint(filename2,"Voltage difference with Cm%d.txt",i)
+	f2.wopen(filename2)
+	v2.printf(f2)
+}
+c_m = 1.5
+update_cm()
+
+/* Varying diameter and recording attenuation*/
+for(i=1; i<=7; i+=1) {
+	diameter = diameter + 0.5
+	update_diam()
+	print_attenuation()
+
+	sprint(filename2,"Voltage difference with diameter%d.txt",i)
+	f2.wopen(filename2)
+	v2.printf(f2)
+}
+diameter = 3
+update_diam()
+
+/* Varying Length and recording attenuation*/
+for(i=1; i<=7; i+=1) {
+	Length = Length + 10
+	update_L()
+	print_attenuation()
+
+	sprint(filename2,"Voltage difference with Length%d.txt",i)
+	f2.wopen(filename2)
+	v2.printf(f2)
+}
+Length=1500 //mu m
+update_L()
+
+// Default parameters are set
+
+n=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+
+for( i=(0.5*n - 0.5); i<=n; i+=1) {
+	dend.nseg=i
+	print_attenuation()
+
+	sprint(filename2,"cVoltage difference%d.txt",i)
+	f2.wopen(filename2)
+	v2.printf(f2)
+}
+
+f1.close()
+f2.close()
+
+xpanel("Parameters")
+xvalue("Iinj","stamp",1,"update_clamp()",1,1)
+xvalue("Rm","rm",1,"update_rm()",1,1)
+xvalue("Ra","ra",1,"update_ra()",1,1)
+xvalue("Cm","c_m",1,"update_cm()",1,1)
+xvalue("Length","Length",1,"update_L()",1,1)
+xvalue("Diameter","diameter",1,"update_diam()",1,1)
+xpanel()
+
+nrncontrolmenu()
+newPlotV()

@@ -1,0 +1,216 @@
+load_file("nrngui.hoc") 
+
+create soma, dend
+access soma
+
+rm=35000	// ohm cm2
+ra=250		// ohm cm
+c_m=1.5		//muF cm2
+sdiameter = 80	//mu m 
+ddiameter = 2.5 // mu m
+sLength = 70	//mu m
+dLength = 1250	//mu m
+
+soma{
+	diam=sdiameter
+	L=sLength
+	Ra=ra
+	cm=c_m
+	nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+	print "Soma nseg=", nseg
+
+	insert pas
+	e_pas=-65
+	g_pas=1/rm
+	tstop = 80
+}
+
+dend{
+	diam=ddiameter
+	L=dLength
+	Ra=ra
+	cm=c_m
+	nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+	print "Dend nseg=", nseg
+
+	insert pas
+	e_pas=-65
+	g_pas=1/rm
+
+	insert minmax
+}
+
+v_init=-70
+v_hold=50
+
+objref vc
+
+vc=new SEClamp(0.5)
+vc.dur1=5
+vc.amp1=v_init
+vc.dur2=40
+vc.amp2=v_hold
+vc.dur3=10
+vc.amp3=v_init
+
+connect soma(1), dend(0) 
+
+proc update_clamp() {
+	vc.amp2=v_hold
+}
+
+proc update_cm() {
+	init()
+	cm=c_m
+	nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+}
+
+proc update_rm() {
+	init()
+	g_pas=1/rm
+	nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+}
+
+proc update_ra() {
+	init()
+	Ra = ra
+	nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+}
+
+proc update_dL() {
+	init()
+	dend.L = dLength
+	nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+}
+
+proc update_ddiameter() {
+	init()
+	dend.diam = ddiameter
+	nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1	
+}
+xpanel("Parameters")
+xvalue("v_Hold","v_hold",1,"update_clamp()",1,1)
+xvalue("Rm","rm",1,"update_rm()",1,1)
+xvalue("Ra","ra",1,"update_ra()",1,1)
+xvalue("Cm","c_m",1,"update_cm()",1,1)
+xpanel()
+
+objref g[20]
+ngraph=0
+
+proc addgraph() { local ii  // define subroutine to add a new graph
+                // addgraph("variable", minvalue, maxvalue)
+    ngraph = ngraph+1
+    ii = ngraph-1
+    g[ii] = new Graph()
+    g[ii].size(0,tstop,$2,$3)
+    g[ii].xaxis()
+    g[ii].yaxis()
+    g[ii].addvar($s1,1,0)
+    g[ii].save_name("graphList[0].")
+    graphList[0].append(g[ii])
+}
+
+addgraph("soma.v(0.5)",-100,100)
+g[0].addexpr("dend.v(0)",2,1)
+g[0].addexpr("dend.v(0.2)",3,1)
+g[0].addexpr("dend.v(0.4)",4,1)
+g[0].addexpr("dend.v(0.5)",5,1)
+g[0].addexpr("dend.v(0.6)",6,1)
+g[0].addexpr("dend.v(0.8)",7,1)
+g[0].addexpr("dend.v(1)",8,1)
+
+objref v1, v2, f1, f2
+v1 = new Vector(11)
+v2 = new Vector(11)
+f1 = new File()
+f2 = new File()
+strdef filename
+
+proc maximum_voltage(){
+	finitialize(-70)
+
+	while (t<tstop){
+		fadvance()
+	}
+	dend {
+		for(j=0; j<=10; j+=1) {
+			v1.x[j] = j*0.1*dend.L
+			v2.x[j] = (vmax_minmax(j*0.1))
+			printf("%f and %f\n", j*0.1*dend.L, (vmax_minmax(j*0.1)))
+		}
+	}
+}
+maximum_voltage()
+f2.wopen("Maximum voltage.txt")
+v2.printf(f2)
+
+/* Varying Rm and recording attenuation*/
+for(i=0; i<=10; i+=1) {
+    rm = rm + 2500
+    update_rm()
+    maximum_voltage()
+
+    sprint(filename,"Maximum Voltage-vary Rm%d.txt",i)
+    f1.wopen(filename)
+    v2.printf(f1)
+}
+rm=35000
+update_rm()
+
+/* Varying Ra and recording attenuation*/
+for(i=0; i<=10; i+=1) {
+    ra = ra + 50
+    update_ra()
+    maximum_voltage()
+
+    sprint(filename,"Maximum Voltage-vary Ra%d.txt",i)
+    f1.wopen(filename)
+    v2.printf(f1)
+}
+ra=250
+update_ra()
+
+/* Varying Cm and recording attenuation*/
+for(i=0; i<=10; i+=1) {
+    c_m = c_m + 0.5
+    update_cm()
+    maximum_voltage()
+
+    sprint(filename,"Maximum Voltage-vary Cm%d.txt",i)
+    f1.wopen(filename)
+    v2.printf(f1)
+}
+cm=1.5
+update_cm()
+
+/* Varying diameter and recording attenuation*/
+for(i=0; i<=10; i+=1) {
+    ddiameter = ddiameter + 0.5
+    update_ddiameter()
+    maximum_voltage()
+
+    sprint(filename,"Maximum Voltage-vary ddiameter%d.txt",i)
+    f1.wopen(filename)
+    v2.printf(f1)
+}
+ddiameter=2.5
+update_ddiameter()
+
+/* Varying Length and recording attenuation*/
+for(i=0; i<=10; i+=1) {
+    dLength = dLength + 50
+    update_dL()
+    maximum_voltage()
+
+    sprint(filename,"Distance-vary dLength%d.txt",i)
+    f1.wopen(filename)
+    v1.printf(f1)
+
+    sprint(filename,"Maximum Voltage-vary dLength%d.txt",i)
+    f2.wopen(filename)
+    v2.printf(f2)
+}
+dLength=1250
+update_dL()
+nrncontrolmenu()

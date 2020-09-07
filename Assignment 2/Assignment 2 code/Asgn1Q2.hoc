@@ -1,0 +1,167 @@
+load_file("nrngui.hoc")
+
+create soma
+access soma
+
+diam = 80
+L = 70
+Rm = 35000
+c = 1.5
+e = -65
+stamp = 0.1
+
+soma {
+	diam = diam
+	L = L
+	cm = c
+
+	insert pas
+	e_pas = e
+	g_pas = 1/Rm
+}
+
+objref stim
+soma stim = new IClamp(0.5)
+stim.del = 150
+stim.dur = 700
+stim.amp = stamp
+
+tstop = 1000
+
+objref vec
+vec = new Vector()
+vec.record(&soma.v(0.5))
+
+proc update_clamp() {
+	stim.amp=stamp
+}
+
+proc update_cm() {
+	soma.cm=c
+}
+
+proc update_rm() {
+	soma.g_pas=1/Rm
+}
+
+proc update_diameter() {
+	soma.diam=diam
+}
+
+proc update_L() {
+	soma.L = L
+}
+xpanel("Parameters")
+xvalue("Clamp Amplitude","stamp",1,"update_clamp()",1,1)
+xvalue("Rm","Rm",1,"update_rm()",1,1)
+xvalue("Cm","c",1,"update_cm()",1,1)
+xpanel()
+
+proc simulate() {
+	finitialize(-65)
+	while (t<tstop) {
+		fadvance()
+	}
+}
+objref v1, v2, f1, f2
+v1 = new Vector()
+v1.record(&soma.v(0.5))
+v2 = new Vector()
+v2.record(&soma.v(0.5))
+f1 = new File()
+f2 = new File()
+double arr1[8], arr2[8], arr3[8], arr4[8]
+
+strdef filename1, filename2
+	
+for(i=0; i<=7; i+=1) {
+	cm = cm + 0.25
+	update_cm()
+	simulate()
+
+	arr1[i]=(v1.max()-soma.e_pas)/stamp //Calculating Input resistance
+	
+	sprint(filename1,"VoltsWithCm%d.txt",i)
+	f1.wopen(filename1)
+	v1.printf(f1)
+	f1.close()
+}
+cm = 1.5
+update_cm()
+
+for(i=0; i<=7; i+=1) {
+	Rm= Rm + 2500
+	update_rm()
+	simulate()
+
+	arr2[i]= (v2.max()-soma.e_pas)/stamp //Calculating Input resistance
+	
+	sprint(filename2,"VoltsWithRm%d.txt",i)
+	f2.wopen(filename2)
+	v2.printf(f2)
+	f2.close()
+}
+rm=35000
+update_rm()
+
+f1.wopen("RinWithCm.txt")
+f2.wopen("RinWithRm.txt")
+
+for(i=0; i<=7; i+=1){
+	f1.printf("%f\n",arr1[i])
+    f2.printf("%f\n",arr2[i])
+} 
+f1.close()
+f2.close()
+
+for(i=0; i<=7; i+=1) {
+	diam = diam + 5
+	update_diameter()
+	simulate()
+
+	arr3[i]=(v1.max()-soma.e_pas)/stamp //Calculating Input resistance
+	
+	sprint(filename1,"VoltsWithdiam%d.txt",i)
+	f1.wopen(filename1)
+	v1.printf(f1)
+	f1.close()
+}
+diam= 80
+update_diameter()
+
+for(i=0; i<=7; i+=1) {
+	L = L + 10
+	update_L()
+	simulate()			
+
+	arr4[i]= (v2.max()-soma.e_pas)/stamp //Calculating Input resistance
+	
+	sprint(filename2,"VoltsWithLength%d.txt",i)
+	f2.wopen(filename2)
+	v2.printf(f2)
+	f2.close()
+}
+L=70
+update_L()
+
+f1.wopen("RinWithdiam.txt")
+f2.wopen("RinWithLength.txt")
+for(i=0; i<=7; i+=1){
+	f1.printf("%f\n",arr3[i])
+    f2.printf("%f\n",arr4[i])
+} 
+f1.close()
+f2.close()
+
+a = vec.max()
+print a
+b= a - soma.e_pas
+print b
+printf("Input resistance of the compartment (G Ohm) = %10.5f", abs(b/stamp))
+
+f1.wopen("Voltage.txt")
+vec.printf(f1)
+f1.close()
+
+nrncontrolmenu()
+newPlotV()
