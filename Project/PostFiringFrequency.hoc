@@ -1,0 +1,220 @@
+load_file("nrngui.hoc")
+
+create soma, axon, PRE, POST
+
+// Variables for all compartments
+celsius = 34 //Temperature - degree celsius
+
+sr_m = 25000
+ar_m = 30000
+postr_m = 30000
+ac_m=1
+sc_m=1.5
+pc_m=1
+sdiameter = 100
+adiameter = 5
+prediam = 10
+postdiam = 100
+sLength = 50
+aLength = 2500
+preLength = 5
+postLength = 50
+def_gnabar = 0.05
+def_gkbar = 0.06
+dur1 = 1000
+stamp1 = 0.1
+
+forall {
+	Ra = 100
+}
+// Modelling soma of presynaptic neuron--------------------------------------------------------------------------
+
+soma{
+	diam=sdiameter
+	L=sLength
+	cm=sc_m
+	temp = celsius
+
+	soma insert pas
+	e_pas=-65
+	g_pas=1/sr_m
+}
+// Modelling axon of presynaptic neuron---------------------------------------------------------------------------
+axon{
+	diam=adiameter
+	L=aLength
+	cm=ac_m
+	nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+
+	insert pas
+	e_pas=-65
+	g_pas=1/ar_m
+}
+
+connect axon(0), soma(1)
+
+// Modelling terminal of presynaptic neuron------------------------------------------------------------------------
+PRE {
+	diam = prediam
+	L = preLength
+	cm = pc_m
+
+	insert cal
+	insert cad
+}
+
+connect PRE(0), axon(1)
+
+POST {
+	diam = postdiam
+	L = postLength
+	cm = pc_m
+ 	v_init = -65
+ 	Ra = 100
+ 	nseg =int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+
+ 	insert pas
+ 	e_pas = -65
+ 	g_pas = 1/postr_m
+
+ 	insert nas
+ 	ena = 50
+ 	gbar_nas = def_gnabar
+
+ 	insert kdr
+ 	ek = -90
+ 	gkdrbar_kdr = def_gkbar
+
+
+}
+
+// AMPA Synaptic receptors on the postsynaptic neuron --------------------------------------------------------
+objectvar syn
+POST syn = new newAMPA(0)
+
+syn.gmax      = 0.001 // (umho)       maximum conductance
+syn.tau		= 5
+syn.TRise		= 2  // Rise time
+syn.Erev		= 0  // Reversal
+//syn.Deadtime	= 1
+
+// Input Stimulus given to soma - varying CURRENT CLAMP-------------------------------------------------------
+objectvar stim1
+soma stim1 = new IClamp(0.5)
+
+stim1.del = 500
+stim1.dur = dur1
+stim1.amp = stamp1
+
+tstop = 2000
+
+proc update_clamp1() {
+	stim1.amp=stamp1
+}
+
+proc update_scm() {
+	soma.cm = sc_m
+}
+
+proc update_acm() {
+	axon.cm = ac_m
+}
+
+proc update_srm() {
+	soma.g_pas = 1/sr_m
+}
+
+proc update_arm() {
+	axon.g_pas = 1/ar_m
+}
+
+proc update_gnabar(){
+	gbar_nas = def_gnabar
+}
+
+proc update_gkbar(){
+	gkdrbar_kdr = def_gkbar
+}
+
+// variable-a will store the total points plotted in the graph. This depends on Tstop and points_plotted_per_ms
+a = tstop*steps_per_ms
+b= dt
+
+//Poisson Spike generation in some time folks -------------------------------------------------------------------
+objref calcur, rand, spike, sumspike, r1, f1, f2, apc
+
+calcur = new Vector(a+1)
+rand = new Vector(a+1)
+spike = new Vector(a+1) //All elements of x are set to 0 by default.
+sumspike = new Vector(a+1)
+
+f1 = new File()
+f2 = new File()
+r1 = new Random()
+
+POST apc = new APCount(0)
+thresh = -10 //for CA1 pyramidal neurons
+
+proc poisson_spike() {
+
+	calcur.record(&PRE.ica(0.5))
+	POST {
+		apc.thresh=thresh
+		c = apc.n
+	}
+	finitialize(-65)
+	cnt =0
+	while (t<tstop) {
+		fadvance()
+
+		quanta_gen = -1*0.025*1.6612764e+009*calcur.x[cnt]
+		
+		for (j=0; j<10; j+=1) {
+			rand.x[cnt]=r1.uniform(0,1)
+
+			if(rand.x[cnt]<=quanta_gen) {
+				spike.x[cnt]=1
+			}
+			sumspike.x[cnt]=sumspike.x[cnt]+spike.x[cnt]
+		}
+
+		syn.C = sumspike.x[cnt]/10
+		//fprint("syn.C=%f\n", syn.C)
+
+		cnt+=1
+	}
+
+}
+poisson_spike()
+
+f2.wopen("POST Firing frequency.txt")
+
+proc fI_curve() {
+	for(k=0; k<90; k+=1) {
+		cnt=0
+		poisson_spike()
+
+		f2.printf("%f\n",c)
+		
+		stamp1 = stamp1 + 0.01
+		update_clamp1()
+	}
+	//Resetting back to however it was earlier.
+	stamp1=0.25
+	update_clamp1()
+}
+
+fI_curve()
+f2.close()
+
+xpanel("Parameters")
+xvalue("Clamp Amplitude-1","stamp1",1,"update_clamp1()",1,1)
+xvalue("soma.cm","sc_m",1,"update_scm()",1,1)
+xvalue("axon.cm","ac_m",1,"update_acm()",1,1)
+xvalue("soma.rm","sr_m",1,"update_srm()",1,1)
+xvalue("axon.rm","ar_m",1,"update_arm()",1,1)
+xvalue("POST.gnabar","def_gnabar",1,"update_gnabar()",1,1)
+xvalue("POST.gkbar","def_gkbar",1,"update_gkbar()",1,1)
+xpanel()
+
+nrncontrolmenu()

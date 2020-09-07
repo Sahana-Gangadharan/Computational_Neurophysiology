@@ -1,0 +1,158 @@
+load_file("nrngui.hoc")
+
+celsius = 34
+postr_m = 30000
+pc_m=1
+postdiam = 100
+postLength = 50
+def_gnabar = 0.05
+def_gkbar = 0.06
+
+create POST
+access POST
+
+POST {
+	diam = postdiam
+	L = postLength
+	cm = pc_m
+ 	v_init = -65
+ 	Ra = 100
+
+ 	insert pas
+ 	e_pas = -65
+ 	g_pas = 1/postr_m
+
+ 	insert nas
+ 	ena = 50
+ 	gbar_nas = def_gnabar
+
+ 	insert kdr
+ 	ek = -90
+ 	gkdrbar_kdr = def_gkbar
+}
+
+delay = 300
+duration = 600
+stamp = 0.005
+
+objref sti
+POST sti = new IClamp(0.5)
+
+sti.del = delay
+sti.dur = duration
+sti.amp = stamp
+
+tstop = 1200
+
+proc update_gnabar(){
+	gbar_nas = def_gnabar
+}
+
+proc update_gkbar(){
+	gkdrbar_kdr = def_gkbar
+}
+
+proc update_clamp() {
+	sti.amp=stamp
+}
+
+objref pv
+pv = new Vector()
+
+pv.record(&POST.v(0.5))
+
+objref apc, f1
+f1 = new File()
+apc = new APCount(0.5)
+thresh = -50 //for CA1 pyramidal neurons
+
+proc firing_frequency() {
+
+	finitialize(v_init)
+
+	while (t<tstop) {
+		fadvance()
+	}
+	apc.thresh = thresh
+	c = apc.n/duration
+}
+
+f1.wopen("Firing frequency.txt")
+
+proc characterization() {
+	for(j=1; j<=30; j+=1) {
+
+		firing_frequency()
+		f1.printf("%f\n",c)
+	
+		stamp = stamp + 0.002
+
+		update_clamp()
+	}
+	stamp = 0.0055
+	update_clamp()	
+}
+
+characterization()
+f1.close()
+
+//To calculate Input resistance.
+f1.wopen("Maximum voltage.txt")
+double arr[20]
+POST {
+	for(i=0; i<20; i+=1) {
+
+		firing_frequency()
+
+		ref = pv.x[delay*steps_per_ms]
+		max = pv.x[800*steps_per_ms]
+		f = abs(max - ref)
+
+		if (stamp==0) {
+			Rin = 0
+		} else if (stamp!=0) {
+			Rin = f/abs(stamp)
+		}
+    	arr[i]=Rin
+
+    	printf("Max voltage = %f\nReference =%f\ndeflection = %f\nRin = %f\n",max,ref,f,Rin)
+    	f1.printf("%f\n",max)
+    	stamp = stamp + 0.001
+		update_clamp()
+	}
+	//stamp = 0.005
+	//update_clamp()
+}
+f1.close()
+f1.wopen("Input resistance.txt")
+
+for(i=0; i<20; i+=1){
+	f1.printf("%f\n",arr[i])
+} 
+f1.close()
+
+objectvar g[20]         // max 20 graphs
+ngraph = 0
+
+proc addgraph() { local ii  // define subroutine to add a new graph
+                // addgraph("variable", minvalue, maxvalue)
+    ngraph = ngraph+1
+    ii = ngraph-1
+    g[ii] = new Graph()
+    g[ii].size(0,tstop,$2,$3)
+    g[ii].xaxis()
+    g[ii].yaxis()
+    g[ii].addvar($s1,1,0)
+    g[ii].save_name("graphList[0].")
+    graphList[0].append(g[ii])
+}
+addgraph("POST.v(0.5)",-100,100)
+
+
+xpanel("Parameters")
+xvalue("POST Clamp","stamp",1,"update_clamp()",1,1)
+xvalue("POST.gnabar","def_gnabar",1,"update_gnabar()",1,1)
+xvalue("POST.gkbar","def_gkbar",1,"update_gkbar()",1,1)
+xpanel()
+
+nrncontrolmenu()
