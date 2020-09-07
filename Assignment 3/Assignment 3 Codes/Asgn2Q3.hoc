@@ -1,0 +1,370 @@
+load_file("nrngui.hoc") 
+
+create soma, dend
+access soma
+
+gLeak = 0.00005	// (ohm cm2)^-1
+dgLeak = 0.00001 // (ohm cm2)^-1
+rm = 10000 // ohm cm2
+sra=125 // ohm cm
+dra=125 // ohm cm2
+sc_m=0.75 // muF cm2
+dc_m=0.75 // muF cm2
+sdiameter = 18.8	// mu m 
+ddiameter = 3 // mu m
+sLength = 18.8	// mu m
+dLength = 1000	// mu m
+temp = 10 // degree celcius
+Ena = 50 // mV
+Ek = -77 // mV
+
+soma{
+	diam=sdiameter
+	L=sLength
+	Ra=sra
+	cm=sc_m
+	nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+	print "Soma nseg=", nseg
+	
+	insert hh
+
+	gnabar_hh = 0.12
+	gkbar_hh = 0.036
+	gl_hh = gLeak
+	el_hh = -60.0
+	celsius = temp
+
+}
+
+dend{
+	diam=ddiameter
+	L=dLength
+	Ra=dra
+	cm=dc_m
+	nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+	print "Dend nseg=", nseg
+
+	insert pas
+	e_pas=-65
+	g_pas=1/rm
+
+	insert minmax
+}
+
+connect dend(0), soma(1)
+
+proc update_scm() {
+	init()
+	soma.cm=sc_m
+	soma.nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+}
+
+proc update_dcm() {
+	init()
+	dend.cm=dc_m
+	dend.nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+}
+
+proc update_gLeak() {
+	init()
+	soma.gl_hh = gLeak
+	soma.nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+}
+
+proc update_rm() {
+	init()
+	dend.g_pas=1/rm
+	dend.nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+}
+
+proc update_sra() {
+	init()
+	soma.Ra = sra
+	soma.nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+}
+
+proc update_dra() {
+	init()
+	dend.Ra = dra
+	dend.nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+}
+
+stamp=0.17
+stdur=100
+
+objectvar stim
+stim = new IClamp(0.5)
+
+stim.del = 100
+stim.dur = stdur
+stim.amp = stamp
+
+tstop = 300
+
+objref v1, v2, f1, f2
+v1 = new Vector(11)
+v2 = new Vector(11)
+f1 = new File()
+f2 = new File()
+
+proc latency(){
+	finitialize()
+
+	while (t<tstop){
+		fadvance()
+	}
+	dend {
+		for(j=0; j<=10; j+=1) {
+			v1.x[j] = (tmax_minmax(j*0.1)) - 100
+			v2.x[j] = (vmax_minmax(j*0.1))
+			printf("Location- %f, time- %f and value- %f\n", j*0.1*dend.L, (tmax_minmax(j*0.1)) - 100, vmax_minmax(j*0.1))
+		}
+	}
+}
+
+latency()
+f1.wopen("Latency.txt")
+v1.printf(f1)
+f2.wopen("AP Amplitude.txt")
+v2.printf(f2)
+
+strdef filename1, filename2
+
+/* Varying Ra for soma and recording attenuation*/
+for(i=0; i<=10; i+=1) {
+    sra = sra + 10
+    update_sra()
+
+    latency()
+
+    sprint(filename1,"Latency -vary soma.Ra%d.txt",i)
+    f1.wopen(filename1)
+    v1.printf(f1)
+
+	sprint(filename2,"AP Amplitude -vary soma.Ra%d.txt",i)
+    f2.wopen(filename2)
+    v2.printf(f2)    
+}
+sra=125
+update_sra()
+
+/* Varying Ra for dendrite and recording attenuation*/
+for(i=0; i<=10; i+=1) {
+    dra = dra + 10
+    update_dra()
+    latency()
+
+    sprint(filename1,"Latency -vary dend.Ra%d.txt",i)
+    f1.wopen(filename1)
+    v1.printf(f1)
+
+	sprint(filename2,"AP Amplitude -vary dend.Ra%d.txt",i)
+    f2.wopen(filename2)
+    v2.printf(f2)    
+}
+dra=125
+update_dra()
+
+/* Varying gLeak for soma and recording attenuation*/
+for(i=0; i<=10; i+=1) {
+    gLeak = gLeak + 0.00001
+    update_gLeak()
+    latency()
+
+    sprint(filename1,"Latency -vary soma.gLeak%d.txt",i)
+    f1.wopen(filename1)
+    v1.printf(f1)
+
+	sprint(filename2,"AP Amplitude -vary soma.gLeak%d.txt",i)
+    f2.wopen(filename2)
+    v2.printf(f2)    
+}
+gLeak=0.00005
+update_gLeak()
+
+/* Varying Rm for dendrite and recording attenuation*/
+for(i=0; i<=10; i+=1) {
+    rm = rm + 2500
+    update_rm()
+    latency()
+
+    sprint(filename1,"Latency -vary dend.rm%d.txt",i)
+    f1.wopen(filename1)
+    v1.printf(f1)
+
+	sprint(filename2,"AP Amplitude -vary dend.rm%d.txt",i)
+    f2.wopen(filename2)
+    v2.printf(f2)    
+}
+rm=10000
+update_rm()
+
+/* Varying CM for soma and recording attenuation*/
+for(i=0; i<=2; i+=1) {
+    sc_m = sc_m + 0.05
+    update_scm()
+    latency()
+
+    sprint(filename1,"Latency -vary soma.cm%d.txt",i)
+    f1.wopen(filename1)
+    v1.printf(f1)
+
+	sprint(filename2,"AP Amplitude -vary soma.cm%d.txt",i)
+    f2.wopen(filename2)
+    v2.printf(f2)    
+}
+sc_m=0.75
+update_scm()
+
+/* Varying CM for dendrite and recording attenuation*/
+for(i=0; i<=10; i+=1) {
+    dc_m = dc_m + 0.01
+    update_dcm()
+    latency()
+
+    sprint(filename1,"Latency -vary dend.cm%d.txt",i)
+    f1.wopen(filename1)
+    v1.printf(f1)
+
+	sprint(filename2,"AP Amplitude -vary dend.cm%d.txt",i)
+    f2.wopen(filename2)
+    v2.printf(f2)    
+}
+dc_m=0.75
+update_dcm()
+
+nrncontrolmenu()
+
+xpanel("Parameters")
+xvalue("soma.cm","sc_m",1,"update_scm()",1,1)
+xvalue("dend.cm","dc_m",1,"update_dcm()",1,1)
+xvalue("soma.gLeak","gLeak",1,"update_gLeak()",1,1)
+xvalue("dend.rm","rm",1,"update_rm()",1,1)
+xvalue("soma.ra","sra",1,"update_sra()",1,1)
+xvalue("dend.ra","dra",1,"update_dra()",1,1)
+xpanel()
+
+dend {
+	insert hh
+
+	gnabar_hh = 0.12
+	gkbar_hh = 0.036
+	gl_hh = dgLeak
+	el_hh = -60.0
+}
+
+proc update_dgLeak() {
+	init()
+	dend.gl_hh = dgLeak
+	dend.nseg=int((L/(0.1*lambda_f(100))+0.9)/2)*2+1
+}
+
+latency()
+f1.wopen("new Latency.txt")
+v1.printf(f1)
+f2.wopen("new AP Amplitude.txt")
+v2.printf(f2)
+
+strdef filename1, filename2
+
+// Varying Ra for soma and recording attenuation
+for(i=0; i<=10; i+=1) {
+    sra = sra + 10
+    update_sra()
+    latency()
+
+    sprint(filename1,"new Latency -vary soma.Ra%d.txt",i)
+    f1.wopen(filename1)
+    v1.printf(f1)
+
+	sprint(filename2,"new AP Amplitude -vary soma.Ra%d.txt",i)
+    f2.wopen(filename2)
+    v2.printf(f2)    
+}
+sra=125
+update_sra()
+
+// Varying Ra for dendrite and recording attenuation
+for(i=0; i<=10; i+=1) {
+    dra = dra + 10
+    update_dra()
+    latency()
+
+    sprint(filename1,"new Latency -vary dend.Ra%d.txt",i)
+    f1.wopen(filename1)
+    v1.printf(f1)
+
+	sprint(filename2,"new AP Amplitude -vary dend.Ra%d.txt",i)
+    f2.wopen(filename2)
+    v2.printf(f2)    
+}
+dra=125
+update_dra()
+
+// Varying gLeak for soma and recording attenuation
+for(i=0; i<=10; i+=1) {
+    gLeak = gLeak + 0.00001
+    update_gLeak()
+    latency()
+
+    sprint(filename1,"new Latency -vary soma.gLeak%d.txt",i)
+    f1.wopen(filename1)
+    v1.printf(f1)
+
+	sprint(filename2,"new AP Amplitude -vary soma.gLeak%d.txt",i)
+    f2.wopen(filename2)
+    v2.printf(f2)    
+}
+gLeak=0.00005
+update_gLeak()
+
+//Varying Rm for dendrite and recording attenuation
+for(i=0; i<=10; i+=1) {
+    dgLeak = dgLeak + 0.000005
+    update_dgLeak()
+    latency()
+
+    sprint(filename1,"new Latency -vary dend.rm%d.txt",i)
+    f1.wopen(filename1)
+    v1.printf(f1)
+
+	sprint(filename2,"new AP Amplitude -vary dend.rm%d.txt",i)
+    f2.wopen(filename2)
+    v2.printf(f2)    
+}
+dgLeak=0.00001
+update_dgLeak()
+
+//Varying CM for soma and recording attenuation
+for(i=0; i<=10; i+=1) {
+    sc_m = sc_m + 0.01
+    update_scm()
+    latency()
+
+    sprint(filename1,"new Latency -vary soma.cm%d.txt",i)
+    f1.wopen(filename1)
+    v1.printf(f1)
+
+	sprint(filename2,"new AP Amplitude -vary soma.cm%d.txt",i)
+    f2.wopen(filename2)
+    v2.printf(f2)    
+}
+sc_m=0.75
+update_scm()
+
+// Varying CM for dendrite and recording attenuation
+for(i=0; i<=10; i+=1) {
+    dc_m = dc_m + 0.01
+    update_dcm()
+    latency()
+
+    sprint(filename1,"new Latency -vary dend.cm%d.txt",i)
+    f1.wopen(filename1)
+    v1.printf(f1)
+
+	sprint(filename2,"new AP Amplitude -vary dend.cm%d.txt",i)
+    f2.wopen(filename2)
+    v2.printf(f2)    
+}
+dc_m=0.75
+update_dcm()

@@ -1,0 +1,269 @@
+load_file("nrngui.hoc") 
+
+create soma
+access soma
+
+gLeak = 0.0001666
+CM = 1
+Ena = 50
+Ek = -77
+D = 15
+temp = 10
+
+soma nseg = 1
+soma diam = D
+soma L = 25
+soma Ra = 125
+soma cm = CM
+
+def_gnabar = 0.12
+def_gkbar = 0.036
+soma insert hh
+gl_hh = gLeak
+celsius = temp
+
+stamp=0.05
+stdur=100
+
+objectvar stim
+soma stim = new IClamp(0.5)
+
+stim.del = 100
+stim.dur = stdur    //100//1
+stim.amp = stamp
+
+tstop = 400
+
+proc update_clamp() {
+	stim.amp=stamp
+}
+
+proc update_clampdur() {
+	stim.dur = stdur
+}
+
+proc update_gnabar(){
+	gnabar_hh = def_gnabar
+}
+
+proc update_gkbar(){
+	gkbar_hh = def_gkbar
+}
+
+proc update_cm(){
+	cm = CM
+}
+
+proc update_gl(){
+	gl_hh = gLeak
+}
+
+proc update_ena(){
+	ena = Ena
+}
+
+proc update_ek(){
+	ek = Ek
+}
+
+proc update_diam(){
+	diam = D
+}
+
+proc update_temp(){
+	celsius = temp
+}
+
+objref g[20]
+ngraph=0
+
+proc addgraph() { local ii  // define subroutine to add a new graph
+                // addgraph("variable", minvalue, maxvalue)
+    ngraph = ngraph+1
+    ii = ngraph-1
+    g[ii] = new Graph()
+    g[ii].size(0,tstop,$2,$3)
+    g[ii].xaxis()
+    g[ii].yaxis()
+    g[ii].addvar($s1,1,0)
+    g[ii].save_name("graphList[0].")
+    graphList[0].append(g[ii])
+}
+
+objref apc, f1
+f1 = new File()
+apc = new APCount(0.5)
+
+proc firing_frequency() {
+
+	finitialize(-65)
+
+	while (t<tstop) {
+		fadvance()
+	}
+
+	apc.thresh = -50
+	a = apc.n/stdur
+}
+
+f1.wopen("Firing frequency.txt")
+
+proc basic() {
+	for(j=1; j<=30; j+=1) {
+		firing_frequency()
+
+		f1.printf("%f\n",a)
+
+		stamp = stamp + 0.02
+		update_clamp()
+	}
+	stamp = 0.05
+	update_clamp()
+}
+basic()
+
+strdef filename
+
+//addgraph("soma.v(0.5)",-100,100)
+
+// Varying gnabar and observing firing frequency 
+for(k=1; k<=10; k+=1) {
+	sprint(filename,"FF-vary gnabar %d .txt",k)
+	f1.wopen(filename)
+	basic()
+	//g[0].addexpr("soma.v(0.5)",k,1)
+	//g[0].exec_menu("Keep Lines")
+	//run()
+
+	def_gnabar = def_gnabar + 0.005
+	update_gnabar()
+}
+def_gnabar = 0.12
+update_gnabar()
+
+//addgraph("soma.v(0.5)",-100,100)
+// Varying gkbar and observing firing frequency 
+for(k=1; k<=10; k+=1) {
+	sprint(filename,"FF-vary gkbar %d .txt",k)
+	f1.wopen(filename)
+	basic()
+	//	g[1].addexpr("soma.v(0.5)",k,1)
+	//	g[1].exec_menu("Keep Lines")
+	//	run()
+
+	def_gkbar = def_gkbar + 0.005
+	update_gkbar()
+}
+def_gkbar = 0.036
+update_gkbar()
+
+//addgraph("soma.v(0.5)",-100,100)
+// Varying Rm, i.e., gLeak and observing firing frequency 
+for(k=1; k<=10; k+=1) {
+	sprint(filename,"FF-vary gLeak %d .txt",k)
+	f1.wopen(filename)
+	basic()
+	//g[2].addexpr("soma.v(0.5)",k,1)
+	//g[2].exec_menu("Keep Lines")
+	//run()
+
+	gLeak = gLeak + 0.00005
+	update_gl()
+}
+gLeak = 0.0003
+update_gl()
+
+//addgraph("soma.v(0.5)",-100,100)
+// Varying Cm and observing firing frequency 
+for(k=1; k<=10; k+=1) {
+	sprint(filename,"FF-vary cm %d .txt", k)
+	f1.wopen(filename)
+	basic()
+	//g[3].addexpr("soma.v(0.5)",k,1)
+	//g[3].exec_menu("Keep Lines")
+	//run()	
+
+	CM = CM + 0.5
+	update_cm()
+}
+CM = 1
+update_cm()
+
+//addgraph("soma.v(0.5)",-100,100)
+// Varying ENa and observing firing frequency
+for(k=1; k<=10; k+=1) {
+	sprint(filename,"FF-vary ENa %d .txt",k)
+	f1.wopen(filename)
+	basic()
+	//g[4].addexpr("soma.v(0.5)",k,1)
+	//g[4].exec_menu("Keep Lines")
+	//run()
+
+	Ena = Ena + 5
+	update_ena()
+}
+Ena = 50
+update_ena()
+
+//addgraph("soma.v(0.5)",-100,100)
+// Varying Ek and observing firing frequency 
+for(k=1; k<=10; k+=1) {
+	sprint(filename,"FF-vary Ek %d .txt",k)
+	f1.wopen(filename)
+	basic()
+	//g[5].addexpr("soma.v(0.5)",k,1)
+	//g[5].exec_menu("Keep Lines")
+	//run()
+	Ek = Ek + 1
+	update_ek()
+}
+Ek = -77
+update_ek()
+
+//addgraph("soma.v(0.5)",-100,100)
+// Varying Diameter and observing firing frequency
+for(k=1; k<=10; k+=1) {
+	sprint(filename,"FF-vary D %d .txt",k)
+	f1.wopen(filename)
+	basic()
+	//g[6].addexpr("soma.v(0.5)",k,1)
+	//g[6].exec_menu("Keep Lines")
+	//run()
+
+	D = D + 0.5
+	update_diam()
+}
+D = 18.8
+update_diam()
+
+//addgraph("soma.v(0.5)",-100,100)
+// Varying Temperature and observing firing frequency
+for(k=1; k<=10; k+=1) {
+	sprint(filename,"FF-vary Temp %d .txt",k)
+	f1.wopen(filename)
+	basic()
+	//g[7].addexpr("soma.v(0.5)",k,1)
+	//g[7].exec_menu("Keep Lines")
+	//run()
+
+	temp = temp + 5
+	update_temp()
+}
+temp = 10
+update_temp()
+
+xpanel("Parameters")
+xvalue("Stim.amp","stamp",1,"update_clamp()",1,1)
+xvalue("gNabar","def_gnabar",1,"update_gnabar()",1,1)
+xvalue("gKbar","def_gkbar",1,"update_gkbar()",1,1)
+xvalue("cm","CM",1,"update_cm()",1,1)
+xvalue("rm","gLeak",1,"update_gl()",1,1)
+xvalue("ena","Ena",1,"update_ena()",1,1)
+xvalue("ek","Ek",1,"update_ek()",1,1)
+xvalue("diam","D",1,"update_diam()",1,1)
+xvalue("celsius","temp",1,"update_temp()",1,1)
+xpanel()
+
+nrncontrolmenu()
+newPlotV()
+
